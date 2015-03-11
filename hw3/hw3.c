@@ -6,8 +6,7 @@
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
-#define TILE_WIDTH 16
-#define TILE_HEIGHT 16
+#define TILE_SIZE 16
 
 char shouldExit = 0;
 
@@ -96,6 +95,7 @@ int main( void )
 		}
 	}
 
+
 	/*Previous frame's keyboard state*/
 	unsigned char kbPrevState[SDL_NUM_SCANCODES]={0};
 
@@ -126,29 +126,47 @@ int main( void )
 
 		/* update positions of camera here */
 		if(kbState[SDL_SCANCODE_RIGHT]) {
-			camera.xPos+=10;
+			camera.xPos+=2;
 		}
 		else if(kbState[SDL_SCANCODE_LEFT]) {
-			camera.xPos-=10;
+			camera.xPos-=2;
 		}
 		else if(kbState[SDL_SCANCODE_UP]) {
-			camera.yPos+=10;
+			camera.yPos+=2;
 		}
 		else if(kbState[SDL_SCANCODE_DOWN]) {
-			camera.yPos-=10;
+			camera.yPos-=2;
 		}
 		/* draw backgrounds, handle parallax */
-		int k,l;
-		//find the region on the map to render
+				//find the region on the map to render
+		/* to determine the region to draw
+		 * divide screen width and height by the size of tiles
+		 * round appropriately */
+		int xStart=camera.xPos/TILE_SIZE;
+		int yStart=camera.yPos/TILE_SIZE;
+		int xFinish=(camera.xPos+WINDOW_WIDTH)/TILE_SIZE;
+		int yFinish=(camera.yPos+WINDOW_HEIGHT)/TILE_SIZE;
+
+		if(xStart<0) xStart=0;
+		if(yStart<0) yStart=0;
+		if(xFinish>100) xFinish=100;
+		if(yFinish>100) yFinish=100;
+
 		//
-		for(k=0;k<100;k++) {
-			for(l=0;l<100;l++) {
-				glDrawSprite( tex[ map[l][k] ],16*l-camera.xPos , 16*k+camera.yPos,16,16 );
+		int k,l;
+
+		for(k=yStart;k<yFinish;k++) {
+			for(l=xStart;l<xFinish;l++) {
+
+					glDrawSprite( tex[ map[l][k] ],
+									16*l-camera.xPos , 
+									16*k+camera.yPos,16,16 );
+				
 			}
 		}
 		/* draw sprites */
 
- 		glDrawSprite(tex[0],player.xPos,camera.yPos,50,50);
+ 		glDrawSprite(tex[0],player.xPos,player.yPos,50,50);
 		/* draw foregrounds, handle parallax */
 		/* Game logic goes here */
 		
