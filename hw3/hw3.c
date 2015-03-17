@@ -14,7 +14,29 @@ GLuint bgTex[16];
 GLuint sprites[32];
 char shouldExit = 0;
 
+/* Defines an animation frame. */
+typedef struct AnimFrameDef {
+	int frameNum; 
+	float frameTime;
+} AnimFrameDef;
+
+/* Defines an animation. Contains animation frames. */ 
+typedef struct AnimDef {
+	const char* name;
+	AnimFrameDef frames[16];
+ 	int numFrames;
+} AnimDef;
+
+/* Stores the run-time state of an animation. */
+typedef struct AnimData {
+	AnimDef* def;
+	int curFrame;
+	float timeToNextFrame;
+	bool isPlaying;
+} AnimData;
+
 typedef struct {
+	AnimData anim;
 	int xPos;
 	int yPos;
 } PLAYER;
@@ -26,24 +48,7 @@ typedef struct {
 	int h;
 } CAMERA;
 
-typedef struct AnimFrameDef {
-	//actual frame (image) stored in some other array
-	int frameNum; 
-	float frameTime;
-} AnimFrameDef;
 
-typedef struct AnimDef{
-	const char* name;
-	AnimFrameDef frames[16];
- 	int numFrames;
-} AnimDef;
-
-typedef struct AnimData {
-	AnimDef* def;
-	int curFrame;
-	float timeToNextFrame;
-	bool isPlaying;
-} AnimData;
 
 void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
@@ -102,11 +107,23 @@ int main( void ) {
 	
 	
 	sprites[0]=glTexImageTGAFile("character1.tga",NULL,NULL);
-	/* Initalize some variables */
+	sprites[1]=glTexImageTGAFile("character2.tga",NULL,NULL);
+
+	/* Initalize player variables */
 	PLAYER player;
+	AnimDef playerAnim;
+	playerAnim.name = "player";
+	playerAnim.frames[0].frameNum=0;
+	playerAnim.frames[0].frameTime=0.16;
+	playerAnim.frames[1].frameNum=1;
+	playerAnim.frames[1].frameTime=0.16;
+	playerAnim.numFrames=2;
+	//player.anim.def = &playerAnim;
+	animSet(&player.anim ,&playerAnim);
 	player.xPos=320;
 	player.yPos=240;
-	
+
+	/* Initialize camera */	
 	CAMERA camera;
 	camera.xPos=0;
 	camera.yPos=0;
@@ -151,6 +168,10 @@ int main( void ) {
 
  	     	/* update positions, animations and sprites here */
 
+		animTick(&player.anim, 0.016);
+		//if(!&player.anim.isPlaying) 
+		//	animReset(&player.anim);
+
  	     	/* update positions of camera here */
  	     	if(kbState[SDL_SCANCODE_RIGHT]) {
  	     		camera.xPos+=2;
@@ -170,6 +191,7 @@ int main( void ) {
  	     	int xFinish=(camera.xPos+WINDOW_WIDTH)/TILE_SIZE;
  	     	int yFinish=(camera.yPos+WINDOW_HEIGHT)/TILE_SIZE;
 
+		/* For safety. Ensures no out-of-bounds errors */
  	     	if(xStart<0) xStart=0;
  	     	if(yStart<0) yStart=0;
  	     	if(xFinish>100) xFinish=100;
@@ -186,8 +208,10 @@ int main( void ) {
  	     		}
  	     	}
  	     	/* draw sprites */
-
- 	     	glDrawSprite(sprites[0],player.xPos,player.yPos,50,50);
+		
+ 	     	//glDrawSprite(sprites[0],player.xPos,player.yPos,50,50);
+		animDraw(&player.anim,player.xPos,player.yPos,50,50);
+		if(!player.anim.isPlaying) animReset(&player.anim);
  	     	/* draw foregrounds, handle parallax */
  	     	/* Game logic goes here */
  	     	
@@ -204,13 +228,13 @@ void animTick(AnimData* data, float dt) {
 		return;
 	}
 
-	//int numFrames = data->def->frames.size();
 	int numFrames = data->def->numFrames;
 	data->timeToNextFrame -= dt;
 	if(data->timeToNextFrame < 0) {
 		++data->curFrame;
-		if(data->curFrame >= numFrames) {
+		if(data->curFrame >= numFrames) { //stops anim
 			data->curFrame = numFrames-1;
+			//data->curFrame = 0;
 			data->timeToNextFrame = 0;
 			data->isPlaying=false;
 		}
