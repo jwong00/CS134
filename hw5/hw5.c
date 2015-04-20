@@ -37,23 +37,30 @@ typedef struct AnimData {
 
 typedef struct {
 	AnimData anim;
-	/* position in tiles*/
-	int xPos;
-	int yPos;
-	/* pixel offset from tile corner*/
-	int xOff;
-	int yOff;
+	/* pixel position in world*/
+	int xPosW;
+	int yPosW;
+	int xPosC;
+	int yPosC;
 } Player;
 
 typedef struct {
 	int xPos;
 	int yPos;
+	/* defines the boundaries of the "inner box" the player
+	 * character pushes against before camera begins to move */
+	int left;
+	int right;
+	int top;
+	int bottom;
 } Camera;
 
 typedef struct enemy {
 	AnimData anim;
-	int xPos;
-	int yPos;
+	int xPosW;
+	int yPosW;
+	int xPosC;
+	int yPosC;
 	int w;
 	int h;
 } Enemy;
@@ -122,6 +129,18 @@ int main( void ) {
 	sprites[0]=glTexImageTGAFile("character1.tga",NULL,NULL);
 	sprites[1]=glTexImageTGAFile("character2.tga",NULL,NULL);
 
+	/* Initialize camera */	
+	Camera camera;
+	camera.xPos=0;
+	camera.yPos=0;
+	camera.left = 2*TILE_SIZE;
+	camera.right = WINDOW_WIDTH-2*TILE_SIZE;
+	camera.top = 2*TILE_SIZE;
+	camera.bottom = WINDOW_HEIGHT-2*TILE_SIZE;
+
+	//camera.w=WINDOW_WIDTH;
+	//camera.h=WINDOW_HEIGHT;
+
 	/* Initalize player variables */
 	Player player;
 	AnimDef playerAnim;
@@ -133,10 +152,10 @@ int main( void ) {
 	playerAnim.numFrames=2;
 	//player.anim.def = &playerAnim;
 	animSet(&player.anim ,&playerAnim);
-	player.xPos=8;
-	player.yPos=6;
-	player.xOff=0;
-	player.yOff=0;
+	player.xPosW=100;
+	player.yPosW=120;
+	player.xPosC=player.xPosW-camera.xPos;
+	player.xPosC=player.xPosW-camera.yPos;
 
 	/* Initialize enemy variables */
 	/*Enemy enemies[8];
@@ -154,12 +173,6 @@ int main( void ) {
 	enemies[1].xPos=396;
 	enemies[1].yPos=400;*/
 
-	/* Initialize camera */	
-	Camera camera;
-	camera.xPos=0;
-	camera.yPos=0;
-	//camera.w=WINDOW_WIDTH;
-	//camera.h=WINDOW_HEIGHT;
 	
 	/* Map for level, a 2d array of pointers to GLuint's */
 	int imageMap[40][40] = {
@@ -229,36 +242,28 @@ int main( void ) {
 
  	     	/* update positions of player here */
  	     	if(kbState[SDL_SCANCODE_RIGHT]) {
-			player.xOff+=1;
-			if(player.xOff>TILE_SIZE) {
-				player.xPos+=1;
-				player.xOff=0;
-			}
+			player.xPosW+=1;	
  	     	}
  	     	else if(kbState[SDL_SCANCODE_LEFT]) {
- 	     		player.xOff-=1;
-			if(player.xOff<0) {
-				player.xPos-=1;
-				player.xOff=TILE_SIZE-1;
-			}
+ 	     		player.xPosW-=1;
 
  	     	}
  	     	else if(kbState[SDL_SCANCODE_UP]) {
- 	     		player.yOff-=1;
-			if(player.yOff<0) {
-				player.yPos-=1;
-				player.yOff=TILE_SIZE-1;
-			}
+ 	     		player.yPosW-=1;
 		}
  	     	else if(kbState[SDL_SCANCODE_DOWN]) {
- 	     		player.yOff+=1;
-			if(player.yOff>TILE_SIZE) {
-				player.yPos+=1;
-				player.yOff=0;
-			}
-			//camera.yPos-=1;
+ 	     		player.yPosW+=1;
  	     	}
 		//printf("%d %d\n", player.xPos, player.yPos);
+
+		/* compute player position relative to camera */
+		player.xPosC = player.xPosW-camera.xPos;
+		player.yPosC = player.yPosW-camera.yPos;
+
+		/* camera adjustment */
+		if(player.xPosC<camera.right) {
+			//
+		}
 
  	     	/* draw backgrounds, handle parallax */
  	     	int xStart=camera.xPos/TILE_SIZE;
@@ -282,13 +287,10 @@ int main( void ) {
  	     				TILE_SIZE*k+camera.yPos, TILE_SIZE , TILE_SIZE );
  	     		}
  	     	}
-		/* compute player position relative to camera */
-		int xRelPos = (player.xPos*TILE_SIZE + player.xOff)-camera.xPos;
-		int yRelPos = (player.yPos*TILE_SIZE + player.yOff)-camera.yPos;
  	     	/* draw sprites */
 		
  	     	//glDrawSprite(sprites[0],player.xPos,player.yPos,50,50);
-		animDraw(&player.anim,xRelPos,yRelPos,TILE_SIZE,TILE_SIZE);
+		animDraw(&player.anim,player.xPosC,player.yPosC,TILE_SIZE,TILE_SIZE);
 		if(!player.anim.isPlaying) animReset(&player.anim);
  	     	/* draw foregrounds, handle parallax */
  	     	/* Game logic goes here */
