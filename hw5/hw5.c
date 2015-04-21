@@ -53,6 +53,7 @@ typedef struct {
 	int right;
 	int top;
 	int bottom;
+	int scroll;
 } Camera;
 
 typedef struct enemy {
@@ -133,10 +134,11 @@ int main( void ) {
 	Camera camera;
 	camera.xPos=0;
 	camera.yPos=0;
-	camera.left = 2*TILE_SIZE;
-	camera.right = WINDOW_WIDTH-2*TILE_SIZE;
-	camera.top = 2*TILE_SIZE;
-	camera.bottom = WINDOW_HEIGHT-2*TILE_SIZE;
+	camera.left = 4*TILE_SIZE;
+	camera.right = WINDOW_WIDTH-4*TILE_SIZE;
+	camera.top = 4*TILE_SIZE;
+	camera.bottom = WINDOW_HEIGHT-4*TILE_SIZE;
+	camera.scroll=1;
 
 	//camera.w=WINDOW_WIDTH;
 	//camera.h=WINDOW_HEIGHT;
@@ -198,7 +200,8 @@ int main( void ) {
 	for(n=0;n<40;n++) {
 		for(m=0;m<40;m++) {
 			map[m][n].image=imageMap[m][n];
-			
+			if(map[m][n].image>0) map[m][n].coll = true;
+			else map[m][n].coll = false;		
 		}
 	}
 	
@@ -209,10 +212,15 @@ int main( void ) {
 	const unsigned char* kbState = NULL;
 	/* Keep a pointer to SDL's internal keyboard state */
 	kbState = SDL_GetKeyboardState(NULL);
-	/* The game loop */
+	
+	/* Timing */
 	Uint32 lastFrameMs;
 	Uint32 currentFrameMs = SDL_GetTicks();
+	float physicsDeltaTime = 1/100.0f;
+	int physicsDeltaMs = 10;
+	Uint32 lastPhysicsFrameMs;
 
+	/* The game loop */
 	while( !shouldExit ) {
  	     	/* Preserve some information from previous frame */
  	     	lastFrameMs = currentFrameMs;
@@ -255,19 +263,52 @@ int main( void ) {
  	     		player.yPosW+=1;
  	     	}
 		//printf("%d %d\n", player.xPos, player.yPos);
+		//
 
+		/* Physics */
+		int xCollStart = player.xPosW/TILE_SIZE;
+		int xCollEnd = (player.xPosW+TILE_SIZE)/TILE_SIZE;
+		int yCollStart = player.yPosW/TILE_SIZE;
+		int yCollEnd = (player.yPosW+TILE_SIZE)/TILE_SIZE;
+		int r,t;
+		do{
+			for(r=yCollStart;r<yCollEnd;r++) {
+				for(t=xCollStart;t<xCollEnd;t++) {
+					if(map[t][r].coll==true) {
+						//collision resolution goes here?
+						//player.xPosW-=t*TILE_SIZE;
+						//player.yPosW-=r*TILE_SIZE;
+					}
+				}
+			}
+			lastPhysicsFrameMs+=physicsDeltaMs;	
+		} while(lastPhysicsFrameMs + physicsDeltaMs <currentFrameMs);
+
+
+		/* camera adjustment */
+		if(player.xPosC+TILE_SIZE>camera.right) {
+			if(camera.xPos+WINDOW_WIDTH<40*TILE_SIZE)
+				camera.xPos+=camera.scroll;	
+		}
+		else if(player.xPosC<camera.left) {
+			if(camera.xPos>0)
+				camera.xPos-=camera.scroll;
+		}
+		if(player.yPosC<camera.top) {
+			if(camera.yPos>0)
+				camera.yPos-=camera.scroll;
+		}
+		else if(player.yPosC+TILE_SIZE>camera.bottom) {
+			if(camera.yPos+WINDOW_WIDTH<40*TILE_SIZE)
+				camera.yPos+=camera.scroll;
+		}
 		/* compute player position relative to camera */
 		player.xPosC = player.xPosW-camera.xPos;
 		player.yPosC = player.yPosW-camera.yPos;
 
-		/* camera adjustment */
-		if(player.xPosC<camera.right) {
-			//
-		}
-
  	     	/* draw backgrounds, handle parallax */
- 	     	int xStart=camera.xPos/TILE_SIZE;
- 	     	int yStart=camera.yPos/TILE_SIZE;
+ 	     	int xStart=camera.xPos-1/TILE_SIZE;
+ 	     	int yStart=camera.yPos-1/TILE_SIZE;
  	     	int xFinish=(camera.xPos+WINDOW_WIDTH)+1/TILE_SIZE;
  	     	int yFinish=(camera.yPos+WINDOW_HEIGHT)+1/TILE_SIZE;
 
@@ -276,15 +317,24 @@ int main( void ) {
  	     	if(yStart<0) yStart=0;
  	     	if(xFinish>40) xFinish=40;
  	     	if(yFinish>40) yFinish=40;
-
- 	     	//
- 	     	int k,l;
+		
+		int k,l;
+ 	     	/*		
+ 	     	
 
  	     	for(k=yStart;k<yFinish;k++) {
  	     		for(l=xStart;l<xFinish;l++) {
  	     			glDrawSprite( bgTex[map[l][k].image],
  	     				TILE_SIZE*l-camera.xPos , 
  	     				TILE_SIZE*k+camera.yPos, TILE_SIZE , TILE_SIZE );
+ 	     		}
+ 	     	}*/
+
+		for(k=0;k<40;k++) {
+ 	     		for(l=0;l<40;l++) {
+ 	     			glDrawSprite( bgTex[map[l][k].image],
+ 	     				TILE_SIZE*l-camera.xPos , 
+ 	     				TILE_SIZE*k-camera.yPos, TILE_SIZE , TILE_SIZE );
  	     		}
  	     	}
  	     	/* draw sprites */
