@@ -39,7 +39,9 @@ typedef struct {
 	AnimData anim;
 	/* pixel position in world*/
 	int xPosW;
+	int xPosWLast;
 	int yPosW;
+	int yPosWLast;
 	int xPosC;
 	int yPosC;
 } Player;
@@ -155,7 +157,10 @@ int main( void ) {
 	//player.anim.def = &playerAnim;
 	animSet(&player.anim ,&playerAnim);
 	player.xPosW=100;
+	player.xPosWLast=player.xPosW;
 	player.yPosW=120;
+	player.yPosWLast=player.yPosWLast;
+
 	player.xPosC=player.xPosW-camera.xPos;
 	player.xPosC=player.xPosW-camera.yPos;
 
@@ -204,6 +209,7 @@ int main( void ) {
 			else map[m][n].coll = false;		
 		}
 	}
+	//printf("\ncoll val at [1][1]: %d\n", map[1][1].coll);
 	
 	/*Previous frame's keyboard state*/
 	unsigned char kbPrevState[SDL_NUM_SCANCODES]={0};
@@ -225,6 +231,8 @@ int main( void ) {
  	     	/* Preserve some information from previous frame */
  	     	lastFrameMs = currentFrameMs;
 		memcpy(kbPrevState, kbState,sizeof(kbPrevState));
+		player.xPosWLast=player.xPosW;
+		player.yPosWLast=player.yPosW;
 
  	     	// Handle OS message pump
  	     	SDL_Event event;
@@ -275,6 +283,9 @@ int main( void ) {
 			for(r=yCollStart;r<yCollEnd;r++) {
 				for(t=xCollStart;t<xCollEnd;t++) {
 					if(map[t][r].coll==true) {
+						printf("map[%d][%d].coll==%d\n",t,r,map[t][r].coll);
+						player.xPosW=player.xPosWLast;
+						player.yPosW=player.yPosWLast;
 						//collision resolution goes here?
 						//player.xPosW-=t*TILE_SIZE;
 						//player.yPosW-=r*TILE_SIZE;
@@ -350,6 +361,22 @@ int main( void ) {
 
 	SDL_Quit();
 
+	return 0;
+}
+
+int playerLeftOf(int m, int n) {
+	return 0;
+}
+
+int playerRightOf(int m, int n) {
+	return 0;
+}
+
+int playerAbove(int m, int n) {
+	return 0;
+}
+
+int playerBelow(int m, int n) {
 	return 0;
 }
 
