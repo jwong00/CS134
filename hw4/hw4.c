@@ -10,7 +10,9 @@
 #define WINDOW_HEIGHT 480
 #define TILE_SIZE 32 
 
-
+GLuint bgTex[16];
+GLuint sprites[32];
+char shouldExit = 0;
 
 /* Defines an animation frame. */
 typedef struct AnimFrameDef {
@@ -70,12 +72,8 @@ typedef struct Tile {
 	int image;
 	bool coll;
 } Tile;
+//Tile map[100][100];
 
-Tile map[40][40];
-GLuint bgTex[16];
-GLuint sprites[32];
-char shouldExit = 0;
-Player player;
 
 void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
@@ -148,7 +146,7 @@ int main( void ) {
 	//camera.h=WINDOW_HEIGHT;
 
 	/* Initalize player variables */
-	//Player player;
+	Player player;
 	AnimDef playerAnim;
 	playerAnim.name = "player";
 	playerAnim.frames[0].frameNum=0;
@@ -202,7 +200,7 @@ int main( void ) {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
-	//Tile map[40][40];
+	Tile map[40][40];
 	int m,n;
 	for(n=0;n<40;n++) {
 		for(m=0;m<40;m++) {
@@ -276,22 +274,18 @@ int main( void ) {
 		//
 
 		/* Physics */
-		int xCollStart = player.xPosW/TILE_SIZE-1;
-		int xCollEnd = (player.xPosW+TILE_SIZE)/TILE_SIZE+1;
-		int yCollStart = player.yPosW/TILE_SIZE-1;
-		int yCollEnd = (player.yPosW+TILE_SIZE)/TILE_SIZE+1;
+		int xCollStart = player.xPosW/TILE_SIZE;
+		int xCollEnd = (player.xPosW+TILE_SIZE)/TILE_SIZE;
+		int yCollStart = player.yPosW/TILE_SIZE;
+		int yCollEnd = (player.yPosW+TILE_SIZE)/TILE_SIZE;
 		int r,t;
 		do{
 			for(r=yCollStart;r<yCollEnd;r++) {
 				for(t=xCollStart;t<xCollEnd;t++) {
 					if(map[t][r].coll==true) {
 						printf("map[%d][%d].coll==%d\n",t,r,map[t][r].coll);
-						//player.xPosW-=playerLeftOf(t,r);
-						//player.xPosW-=playerRightOf(t,r);
-						//player.yPosW-=playerBelow(t,r);
-						//player.yPosW-=playerAbove(t,r);
-						//player.xPosW=player.xPosWLast;
-						//player.yPosW=player.yPosWLast;
+						player.xPosW=player.xPosWLast;
+						player.yPosW=player.yPosWLast;
 						//collision resolution goes here?
 						//player.xPosW-=t*TILE_SIZE;
 						//player.yPosW-=r*TILE_SIZE;
@@ -370,32 +364,19 @@ int main( void ) {
 	return 0;
 }
 
-/* Tests player position */
 int playerLeftOf(int m, int n) {
-	int overlap=(player.xPosW+TILE_SIZE)-m*TILE_SIZE;
-	if(overlap>0)
-		return overlap;
-	else return 0;
+	return 0;
 }
 
 int playerRightOf(int m, int n) {
-	int overlap=player.xPosW-(m*TILE_SIZE+TILE_SIZE);
-	if(overlap<0)
-		return overlap;
-	else return 0;
+	return 0;
 }
 
 int playerAbove(int m, int n) {
-	int overlap=(player.yPosW+TILE_SIZE)-n*TILE_SIZE;
-	if(overlap>0)
-		return overlap;
 	return 0;
 }
 
 int playerBelow(int m, int n) {
-	int overlap=player.yPosW-(n*TILE_SIZE+TILE_SIZE);
-	if(overlap<0)
-		return overlap;
 	return 0;
 }
 
