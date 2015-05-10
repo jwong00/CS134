@@ -8,9 +8,9 @@
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
-#define TILE_SIZE 32 
-
-
+#define TILE_SIZE 32
+#define MAP_HEIGHT 40
+#define MAP_WIDTH 40
 
 /* Defines an animation frame. */
 typedef struct AnimFrameDef {
@@ -71,7 +71,7 @@ typedef struct Tile {
 	bool coll;
 } Tile;
 
-Tile map[40][40];
+Tile map[MAP_WIDTH][MAP_HEIGHT];
 GLuint bgTex[16];
 GLuint sprites[32];
 char shouldExit = 0;
@@ -184,16 +184,16 @@ int main( void ) {
 
 	
 	/* Map for level, a 2d array of pointers to GLuint's */
-	int imageMap[40][40] = {
+	int imageMap[MAP_WIDTH][MAP_HEIGHT] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,1,4,4,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,1,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
 		0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
-		0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
-		0,0,1,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+		0,0,1,1,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,1,1,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -204,6 +204,13 @@ int main( void ) {
 	};
 	//Tile map[40][40];
 	int m,n;
+	/*for(n=0;n<40;n++) {
+		for(m=0;m<40;m++) {
+			map[n][m].image=imageMap[n][m];
+			if(map[n][m].image>0) map[n][m].coll = true;
+			else map[n][m].coll = false;		
+		}
+	}*/
 	for(n=0;n<40;n++) {
 		for(m=0;m<40;m++) {
 			map[m][n].image=imageMap[m][n];
@@ -261,37 +268,67 @@ int main( void ) {
  	     	/* update positions of player here */
  	     	if(kbState[SDL_SCANCODE_RIGHT]) {
 			player.xPosW+=1;	
+			if(kbState[SDL_SCANCODE_UP]) {
+ 	     			player.yPosW-=1;
+			}
+ 	     		else if(kbState[SDL_SCANCODE_DOWN]) {
+ 	     			player.yPosW+=1;
+ 	     		}
+
  	     	}
  	     	else if(kbState[SDL_SCANCODE_LEFT]) {
  	     		player.xPosW-=1;
+			if(kbState[SDL_SCANCODE_UP]) {
+ 	     			player.yPosW-=1;
+			}
+ 	     		else if(kbState[SDL_SCANCODE_DOWN]) {
+ 	     			player.yPosW+=1;
+ 	     		}
 
  	     	}
  	     	else if(kbState[SDL_SCANCODE_UP]) {
  	     		player.yPosW-=1;
+			if(kbState[SDL_SCANCODE_LEFT]) {
+ 	     			player.xPosW-=1;
+			}
+ 	     		else if(kbState[SDL_SCANCODE_RIGHT]) {
+ 	     			player.xPosW+=1;
+ 	     		}
 		}
  	     	else if(kbState[SDL_SCANCODE_DOWN]) {
  	     		player.yPosW+=1;
+			if(kbState[SDL_SCANCODE_LEFT]) {
+ 	     			player.xPosW-=1;
+			}
+ 	     		else if(kbState[SDL_SCANCODE_RIGHT]) {
+ 	     			player.xPosW+=1;
+ 	     		}
  	     	}
 		//printf("%d %d\n", player.xPos, player.yPos);
 		//
 
 		/* Physics */
-		int xCollStart = player.xPosW/TILE_SIZE-1;
-		int xCollEnd = (player.xPosW+TILE_SIZE)/TILE_SIZE+1;
-		int yCollStart = player.yPosW/TILE_SIZE-1;
-		int yCollEnd = (player.yPosW+TILE_SIZE)/TILE_SIZE+1;
+		int xCollStart = player.xPosW/TILE_SIZE;
+		int xCollEnd = (player.xPosW+TILE_SIZE-1)/TILE_SIZE;
+		int yCollStart = player.yPosW/TILE_SIZE;
+		int yCollEnd = (player.yPosW+TILE_SIZE-1)/TILE_SIZE;
 		int r,t;
 		do{
-			for(r=yCollStart;r<yCollEnd;r++) {
-				for(t=xCollStart;t<xCollEnd;t++) {
+			for(r=yCollStart;r<=yCollEnd;r++) {
+				for(t=xCollStart;t<=xCollEnd;t++) {
+					if(playerOutOfBounds()) {
+						player.xPosW=player.xPosWLast;
+						player.yPosW=player.yPosWLast;
+
+					}
 					if(map[t][r].coll==true) {
 						printf("map[%d][%d].coll==%d\n",t,r,map[t][r].coll);
-						//player.xPosW-=playerLeftOf(t,r);
+						//player.xPosW+=playerLeftOf(t,r);
 						//player.xPosW-=playerRightOf(t,r);
 						//player.yPosW-=playerBelow(t,r);
 						//player.yPosW-=playerAbove(t,r);
-						//player.xPosW=player.xPosWLast;
-						//player.yPosW=player.yPosWLast;
+						player.xPosW=player.xPosWLast;
+						player.yPosW=player.yPosWLast;
 						//collision resolution goes here?
 						//player.xPosW-=t*TILE_SIZE;
 						//player.yPosW-=r*TILE_SIZE;
@@ -336,17 +373,17 @@ int main( void ) {
  	     	if(yFinish>40) yFinish=40;
 		
 		int k,l;
- 	     	/*		
+ 	     			
  	     	
 
- 	     	for(k=yStart;k<yFinish;k++) {
- 	     		for(l=xStart;l<xFinish;l++) {
+ 	     	/*for(l=xStart;l<xFinish;l++) {
+ 	     		 for(k=yStart;k<yFinish;k++) {
  	     			glDrawSprite( bgTex[map[l][k].image],
  	     				TILE_SIZE*l-camera.xPos , 
  	     				TILE_SIZE*k+camera.yPos, TILE_SIZE , TILE_SIZE );
  	     		}
  	     	}*/
-
+		
 		for(k=0;k<40;k++) {
  	     		for(l=0;l<40;l++) {
  	     			glDrawSprite( bgTex[map[l][k].image],
@@ -371,8 +408,18 @@ int main( void ) {
 }
 
 /* Tests player position */
+int playerOutOfBounds() {
+	int playerOutOfBounds=0;
+	if(player.xPosW<0 || player.xPosW+TILE_SIZE>MAP_WIDTH*TILE_SIZE)
+		playerOutOfBounds=1;
+	if(player.yPosW<0 || player.yPosW+TILE_SIZE>MAP_HEIGHT*TILE_SIZE)
+		playerOutOfBounds=1;
+	return playerOutOfBounds;
+}
+
 int playerLeftOf(int m, int n) {
 	int overlap=(player.xPosW+TILE_SIZE)-m*TILE_SIZE;
+	printf("LEFT OF: %d\n", overlap);
 	if(overlap>0)
 		return overlap;
 	else return 0;
@@ -380,6 +427,7 @@ int playerLeftOf(int m, int n) {
 
 int playerRightOf(int m, int n) {
 	int overlap=player.xPosW-(m*TILE_SIZE+TILE_SIZE);
+	printf("RIGHT OF: %d\n", overlap);
 	if(overlap<0)
 		return overlap;
 	else return 0;
@@ -387,6 +435,7 @@ int playerRightOf(int m, int n) {
 
 int playerAbove(int m, int n) {
 	int overlap=(player.yPosW+TILE_SIZE)-n*TILE_SIZE;
+	printf("ABOVE: %d\n", overlap);
 	if(overlap>0)
 		return overlap;
 	return 0;
@@ -394,7 +443,8 @@ int playerAbove(int m, int n) {
 
 int playerBelow(int m, int n) {
 	int overlap=player.yPosW-(n*TILE_SIZE+TILE_SIZE);
-	if(overlap<0)
+	printf("BELOW: %d\n", overlap);
+	if(overlap>0)
 		return overlap;
 	return 0;
 }
