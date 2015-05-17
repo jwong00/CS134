@@ -35,14 +35,10 @@ typedef struct AnimData {
 
 typedef struct {
 	AnimData anim;
-	/* pixel position in world*/
-	float xPosW;
-	int xPosWLast;
-	float yPosW;
-	int yPosWLast;
-	/* velocity */
-	int xVel;
-	int yVel;
+	int xPosTile;
+	int xPosTileLast;
+	int yPosTile;
+	int yPosTileLast;
 	int xPosC;
 	int yPosC;
 } Player;
@@ -74,18 +70,27 @@ typedef struct Tile {
 	bool coll;
 } Tile;
 
+struct {
+	int turn;
+	float lastTurnMs;
+} gamestate;
+
 Tile map[MAP_WIDTH][MAP_HEIGHT];
 GLuint bgTex[16];
 GLuint sprites[32];
 char shouldExit = 0;
 Player player;
+Camera camera;
 
 void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
 void animReset(AnimData*);
 void animDraw(AnimData*, int,int,int,int);
+void updatePlayer();
+void playerBoundsCorrection();
 
 int main( void ) {
+
 	/* Initialize SDL */
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) {
 		return 1;
@@ -136,9 +141,11 @@ int main( void ) {
 	
 	sprites[0]=glTexImageTGAFile("character1.tga",NULL,NULL);
 	sprites[1]=glTexImageTGAFile("character2.tga",NULL,NULL);
+	/* Game state stuff */
+	gamestate.turn=0;
+	gamestate.lastTurnMs=0.0f;
 
 	/* Initialize camera */	
-	Camera camera;
 	camera.xPos=0;
 	camera.yPos=0;
 	camera.left = 4*TILE_SIZE;
@@ -161,15 +168,10 @@ int main( void ) {
 	playerAnim.numFrames=2;
 	//player.anim.def = &playerAnim;
 	animSet(&player.anim ,&playerAnim);
-	player.xVel=0;
-	player.yVel=0;
-	player.xPosW=100;
-	player.xPosWLast=player.xPosW;
-	player.yPosW=120;
-	player.yPosWLast=player.yPosWLast;
-
-	player.xPosC=player.xPosW-camera.xPos;
-	player.xPosC=player.xPosW-camera.yPos;
+	player.xPosTile=3;
+	player.yPosTile=3;
+	player.xPosTileLast=3;
+	player.yPosTileLast=3;
 
 	/* Initialize enemy variables */
 	/*Enemy enemies[8];
@@ -205,7 +207,31 @@ int main( void ) {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 	};
 	//Tile map[40][40];
 	int m,n;
@@ -245,8 +271,8 @@ int main( void ) {
  	     	/* Preserve some information from previous frame */
  	     	lastFrameMs = currentFrameMs;
 		memcpy(kbPrevState, kbState,sizeof(kbPrevState));
-		player.xPosWLast=player.xPosW;
-		player.yPosWLast=player.yPosW;
+		player.xPosTileLast=player.xPosTile;
+		player.yPosTileLast=player.yPosTile;
 		currentFrameMs = SDL_GetTicks();
 		float deltaTime = (currentFrameMs - lastFrameMs)/1000.0f;
 
@@ -272,106 +298,52 @@ int main( void ) {
 
  	     	/* update positions of player here */
 		if(kbState[SDL_SCANCODE_RIGHT]) {
-			player.xVel=160;
+			if(canTurn(currentFrameMs)) {
+				player.xPosTile++;
+				playerBoundsCorrection();
+				debugPosition();
+			}
+			//player.xVel=160;
 		}
 
 		else if(kbState[SDL_SCANCODE_LEFT]) {
-			player.xVel=-160;
+			if(canTurn(currentFrameMs)) {
+				player.xPosTile--;
+				playerBoundsCorrection();
+				debugPosition();
+			}
+
+			//player.xVel=-160;
 		}
 				//else player.xVel=0;
-		if(kbState[SDL_SCANCODE_UP]) {
-			player.yVel=-160;
+		else if(kbState[SDL_SCANCODE_UP]) {
+			if(canTurn(currentFrameMs)) {
+				player.yPosTile--;
+				playerBoundsCorrection();
+				debugPosition();
+			}
+			//player.yVel=-160;
 		} 
 		else if(kbState[SDL_SCANCODE_DOWN]) {
-			player.yVel=160;
+			if(canTurn(currentFrameMs)) {
+				player.yPosTile++;
+				playerBoundsCorrection();
+				debugPosition();
+			}
+			//player.yVel=160;
 		}
-		//else player.yVel=0;
-		
- 	     	/*
-		if(kbState[SDL_SCANCODE_RIGHT]) {
-			player.xPosW+=1;	
-			if(kbState[SDL_SCANCODE_UP]) {
- 	     			player.yPosW-=1;
-			}
- 	     		else if(kbState[SDL_SCANCODE_DOWN]) {
- 	     			player.yPosW+=1;
- 	     		}
-
- 	     	}
- 	     	else if(kbState[SDL_SCANCODE_LEFT]) {
- 	     		player.xPosW-=1;
-			if(kbState[SDL_SCANCODE_UP]) {
- 	     			player.yPosW-=1;
-			}
- 	     		else if(kbState[SDL_SCANCODE_DOWN]) {
- 	     			player.yPosW+=1;
- 	     		}
-
- 	     	}
- 	     	else if(kbState[SDL_SCANCODE_UP]) {
- 	     		player.yPosW-=1;
-			if(kbState[SDL_SCANCODE_LEFT]) {
- 	     			player.xPosW-=1;
-			}
- 	     		else if(kbState[SDL_SCANCODE_RIGHT]) {
- 	     			player.xPosW+=1;
- 	     		}
-		}
- 	     	else if(kbState[SDL_SCANCODE_DOWN]) {
- 	     		player.yPosW+=1;
-			if(kbState[SDL_SCANCODE_LEFT]) {
- 	     			player.xPosW-=1;
-			}
- 	     		else if(kbState[SDL_SCANCODE_RIGHT]) {
- 	     			player.xPosW+=1;
- 	     		}
- 	     	}*/
-		//printf("%d %d\n", player.xPos, player.yPos);
-		//
-
 		/* Physics */
-		int xCollStart = player.xPosW/TILE_SIZE;
-		int xCollEnd = (player.xPosW+TILE_SIZE-1)/TILE_SIZE;
-		int yCollStart = player.yPosW/TILE_SIZE;
-		int yCollEnd = (player.yPosW+TILE_SIZE-1)/TILE_SIZE;
-		int r,t;
-		do{
-			//printf("xVel=%d, xDelta=%f\n",player.xVel,player.xVel*deltaTime);
-			//printf("yVel=%d, yDelta=%f\n",player.yVel,player.yVel*deltaTime);
-			player.xPosW+=player.xVel*deltaTime;
-			player.yPosW+=player.yVel*deltaTime;
-
-			for(r=yCollStart;r<=yCollEnd;r++) {
-				for(t=xCollStart;t<=xCollEnd;t++) {
-					if(playerOutOfBounds()) {
-						player.xPosW=player.xPosWLast;
-						player.yPosW=player.yPosWLast;
-
-					}
-					if(map[t][r].coll==true) {
-						//printf("map[%d][%d].coll==%d\n",t,r,map[t][r].coll);
-						//player.xPosW+=playerLeftOf(t,r);
-						//player.xPosW-=playerRightOf(t,r);
-						//player.yPosW-=playerBelow(t,r);
-						//player.yPosW-=playerAbove(t,r);
-						player.xPosW=player.xPosWLast;
-						player.yPosW=player.yPosWLast;
-						//collision resolution goes here?
-						//player.xPosW-=t*TILE_SIZE;
-						//player.yPosW-=r*TILE_SIZE;
-					}
-				}
+		do {
+			if(map[player.xPosTile][player.yPosTile].coll) {
+				playerPositionReset();
 			}
-			
-			lastPhysicsFrameMs+=physicsDeltaMs;	
-		} while(lastPhysicsFrameMs + physicsDeltaMs <currentFrameMs);
-		player.yVel=0;
-		player.xVel=0;
-
-
+			lastPhysicsFrameMs+=physicsDeltaMs;
+		} while(lastPhysicsFrameMs + physicsDeltaMs<currentFrameMs);
+		
+		updatePlayer();
 		/* camera adjustment */
 		if(player.xPosC+TILE_SIZE>camera.right) {
-			if(camera.xPos+WINDOW_WIDTH<40*TILE_SIZE)
+			if(camera.xPos+WINDOW_WIDTH<MAP_WIDTH*TILE_SIZE)
 				camera.xPos+=camera.scroll;	
 		}
 		else if(player.xPosC<camera.left) {
@@ -383,36 +355,13 @@ int main( void ) {
 				camera.yPos-=camera.scroll;
 		}
 		else if(player.yPosC+TILE_SIZE>camera.bottom) {
-			if(camera.yPos+WINDOW_WIDTH<40*TILE_SIZE)
+			if(camera.yPos+WINDOW_HEIGHT<MAP_HEIGHT*TILE_SIZE)
 				camera.yPos+=camera.scroll;
 		}
-		/* compute player position relative to camera */
-		player.xPosC = player.xPosW-camera.xPos;
-		player.yPosC = player.yPosW-camera.yPos;
 
  	     	/* draw backgrounds, handle parallax */
- 	     	int xStart=camera.xPos-1/TILE_SIZE;
- 	     	int yStart=camera.yPos-1/TILE_SIZE;
- 	     	int xFinish=(camera.xPos+WINDOW_WIDTH)+1/TILE_SIZE;
- 	     	int yFinish=(camera.yPos+WINDOW_HEIGHT)+1/TILE_SIZE;
-
-		/* For safety. Ensures no out-of-bounds errors */
- 	     	if(xStart<0) xStart=0;
- 	     	if(yStart<0) yStart=0;
- 	     	if(xFinish>40) xFinish=40;
- 	     	if(yFinish>40) yFinish=40;
 		
 		int k,l;
- 	     			
- 	     	
-
- 	     	/*for(l=xStart;l<xFinish;l++) {
- 	     		 for(k=yStart;k<yFinish;k++) {
- 	     			glDrawSprite( bgTex[map[l][k].image],
- 	     				TILE_SIZE*l-camera.xPos , 
- 	     				TILE_SIZE*k+camera.yPos, TILE_SIZE , TILE_SIZE );
- 	     		}
- 	     	}*/
 		
 		for(k=0;k<40;k++) {
  	     		for(l=0;l<40;l++) {
@@ -437,16 +386,40 @@ int main( void ) {
 	return 0;
 }
 
-/* Tests player position */
-int playerOutOfBounds() {
-	int playerOutOfBounds=0;
-	if(player.xPosW<0 || player.xPosW+TILE_SIZE>MAP_WIDTH*TILE_SIZE)
-		playerOutOfBounds=1;
-	if(player.yPosW<0 || player.yPosW+TILE_SIZE>MAP_HEIGHT*TILE_SIZE)
-		playerOutOfBounds=1;
-	return playerOutOfBounds;
+
+int playerPositionReset() {
+	player.xPosTile=player.xPosTileLast;
+	player.yPosTile=player.yPosTileLast;
+
+}
+int debugPosition() {
+	printf("   LAST:%d %d\n", player.xPosTileLast,player.yPosTileLast);
+	printf("   CURR:%d %d\n", player.xPosTile, player.yPosTile);
 }
 
+int canTurn(Uint32 currentTime) {
+	if(currentTime-gamestate.lastTurnMs>75) {
+		gamestate.turn++;
+		gamestate.lastTurnMs=currentTime;
+		printf("TURN: %d\n", gamestate.turn);
+		return 1;
+	}
+	else return 0;
+}
+
+/* Tests player position */
+void playerBoundsCorrection() {
+
+	if(player.xPosTile<0 )
+		player.xPosTile=0;
+	if(player.xPosTile>MAP_WIDTH-1)
+		player.xPosTile=MAP_WIDTH-1;
+	if(player.yPosTile<0)
+		player.yPosTile=0;
+	if(player.yPosTile>MAP_HEIGHT-1)
+		player.yPosTile=MAP_HEIGHT-1;
+}
+/*
 int playerLeftOf(int m, int n) {
 	int overlap=(player.xPosW+TILE_SIZE)-m*TILE_SIZE;
 	printf("LEFT OF: %d\n", overlap);
@@ -477,7 +450,14 @@ int playerBelow(int m, int n) {
 	if(overlap>0)
 		return overlap;
 	return 0;
+}*/
+
+/* Get position from tile to pixel values relative to camera. */
+void updatePlayer() {
+	player.xPosC=player.xPosTile*TILE_SIZE-camera.xPos;
+	player.yPosC=player.yPosTile*TILE_SIZE-camera.yPos;
 }
+
 
 void animTick(AnimData* data, float dt) {
 	if(!data->isPlaying) {
