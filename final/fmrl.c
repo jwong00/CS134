@@ -11,6 +11,8 @@
 #define TILE_SIZE 32
 #define MAP_HEIGHT 40
 #define MAP_WIDTH 40
+#define NUMBER_OF_ENEMIES 2
+#define DEBUG 1 
 
 /* Defines an animation frame. */
 typedef struct AnimFrameDef {
@@ -35,6 +37,8 @@ typedef struct AnimData {
 
 typedef struct {
 	AnimData anim;
+	int hitpoints;
+	int damage;
 	int xPosTile;
 	int xPosTileLast;
 	int yPosTile;
@@ -55,19 +59,24 @@ typedef struct {
 	int scroll;
 } Camera;
 
-typedef struct enemy {
+typedef struct {
 	AnimData anim;
-	int xPosW;
-	int yPosW;
+	int hitpoints;
+	int damage;
+	int xPosTile;
+	int xPosTileLast;
+	int yPosTile;
+	int yPosTileLast;
 	int xPosC;
 	int yPosC;
-	int w;
-	int h;
 } Enemy;
 
 typedef struct Tile {
 	int image;
 	bool coll;
+	bool hasEnemy;
+	int enemyID;
+	bool hasItem;
 } Tile;
 
 struct {
@@ -81,13 +90,20 @@ GLuint sprites[32];
 char shouldExit = 0;
 Player player;
 Camera camera;
+Enemy enemies[NUMBER_OF_ENEMIES];
 
 void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
 void animReset(AnimData*);
 void animDraw(AnimData*, int,int,int,int);
-void updatePlayer();
+void playerUpdate();
+void enemiesUpdatePosition();
 void playerBoundsCorrection();
+void drawEnemies(int);
+void enemiesUpdateCamera();
+void turn();
+void enemiesDebug();
+int combat(Enemy*);
 
 int main( void ) {
 
@@ -165,31 +181,17 @@ int main( void ) {
 	playerAnim.frames[0].frameTime=1.0;
 	playerAnim.frames[1].frameNum=1;
 	playerAnim.frames[1].frameTime=1.0;
-	playerAnim.numFrames=2;
+	playerAnim.numFrames=1;
 	//player.anim.def = &playerAnim;
 	animSet(&player.anim ,&playerAnim);
 	player.xPosTile=3;
 	player.yPosTile=3;
 	player.xPosTileLast=3;
 	player.yPosTileLast=3;
+	player.hitpoints=20;
+	player.damage=6;
 
-	/* Initialize enemy variables */
-	/*Enemy enemies[8];
-	AnimDef enemyAnim1;
-	enemyAnim1.name = "enemy1";
-	enemyAnim1.frames[0].frameNum=0;
-	enemyAnim1.frames[0].frameTime=0.5;
-	enemyAnim1.frames[1].frameNum=1;
-	enemyAnim1.frames[1].frameTime=0.5;
-	enemyAnim1.numFrames=2;
-	animSet(&enemies[0].anim, &enemyAnim1);
-	animSet(&enemies[1].anim, &enemyAnim1);
-	enemies[0].xPos=100;
-	enemies[0].yPos=140;
-	enemies[1].xPos=396;
-	enemies[1].yPos=400;*/
-
-	
+		
 	/* Map for level, a 2d array of pointers to GLuint's */
 	int imageMap[MAP_WIDTH][MAP_HEIGHT] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -245,12 +247,42 @@ int main( void ) {
 	for(n=0;n<40;n++) {
 		for(m=0;m<40;m++) {
 			map[m][n].image=imageMap[m][n];
+			map[m][n].hasEnemy = false;
+			map[m][n].hasItem = false;
+			map[m][n].enemyID=-1;
 			if(map[m][n].image>0) map[m][n].coll = true;
 			else map[m][n].coll = false;		
 		}
 	}
 	//printf("\ncoll val at [1][1]: %d\n", map[1][1].coll);
 	
+	/* Initialize enemy variables */
+	//Enemy enemies[8];
+	AnimDef enemyAnim1;
+	enemyAnim1.name = "enemy1";
+	enemyAnim1.frames[0].frameNum=1;
+	enemyAnim1.frames[0].frameTime=1.0;
+	enemyAnim1.numFrames=1;
+	animSet(&enemies[0].anim, &enemyAnim1);
+	animSet(&enemies[1].anim, &enemyAnim1);
+	enemies[0].xPosTile=0;
+	enemies[0].yPosTile=0;
+	enemies[0].xPosTileLast=0;
+	enemies[0].yPosTileLast=0;
+	enemies[0].hitpoints=12;
+	enemies[0].damage=4;
+	enemies[1].xPosTile=33;
+	enemies[1].xPosTileLast=33;
+	enemies[1].yPosTile=28;
+	enemies[1].yPosTileLast=28;
+	enemies[1].hitpoints=12;
+	enemies[1].damage=4;
+	enemiesUpdateCamera();
+	enemiesUpdatePosition();
+	//printf("\nENEMY0 POS: %d %d\n", enemies[0].xPosTile,enemies[0].yPosTile);
+	//printf("map[0][0] hasEnem? %d\n", map[0][0].hasEnemy);
+//	printf("%d\n", true);
+
 	/*Previous frame's keyboard state*/
 	unsigned char kbPrevState[SDL_NUM_SCANCODES]={0};
 	
@@ -293,44 +325,46 @@ int main( void ) {
  	     	/* update positions, animations and sprites here */
 
 		animTick(&player.anim, 0.016);
-		//if(!&player.anim.isPlaying) 
-		//	animReset(&player.anim);
 
  	     	/* update positions of player here */
 		if(kbState[SDL_SCANCODE_RIGHT]) {
-			if(canTurn(currentFrameMs)) {
+			if(turnLegal(currentFrameMs)) {
 				player.xPosTile++;
 				playerBoundsCorrection();
-				debugPosition();
+				turn();
+				if(DEBUG) debugPosition();
+				if(DEBUG) enemiesDebug();
 			}
-			//player.xVel=160;
 		}
 
 		else if(kbState[SDL_SCANCODE_LEFT]) {
-			if(canTurn(currentFrameMs)) {
+			if(turnLegal(currentFrameMs)) {
 				player.xPosTile--;
 				playerBoundsCorrection();
-				debugPosition();
+				turn();
+				if(DEBUG) debugPosition();
+				if(DEBUG) enemiesDebug();
 			}
-
-			//player.xVel=-160;
 		}
-				//else player.xVel=0;
 		else if(kbState[SDL_SCANCODE_UP]) {
-			if(canTurn(currentFrameMs)) {
+			if(turnLegal(currentFrameMs)) {
 				player.yPosTile--;
 				playerBoundsCorrection();
-				debugPosition();
+				turn();
+				if(DEBUG) debugPosition();
+				
+				if(DEBUG) enemiesDebug();
 			}
-			//player.yVel=-160;
 		} 
 		else if(kbState[SDL_SCANCODE_DOWN]) {
-			if(canTurn(currentFrameMs)) {
+			if(turnLegal(currentFrameMs)) {
 				player.yPosTile++;
 				playerBoundsCorrection();
-				debugPosition();
+				turn();
+				if(DEBUG) debugPosition();
+
+				if(DEBUG) enemiesDebug();
 			}
-			//player.yVel=160;
 		}
 		/* Physics */
 		do {
@@ -340,7 +374,7 @@ int main( void ) {
 			lastPhysicsFrameMs+=physicsDeltaMs;
 		} while(lastPhysicsFrameMs + physicsDeltaMs<currentFrameMs);
 		
-		updatePlayer();
+		playerUpdate();
 		/* camera adjustment */
 		if(player.xPosC+TILE_SIZE>camera.right) {
 			if(camera.xPos+WINDOW_WIDTH<MAP_WIDTH*TILE_SIZE)
@@ -373,8 +407,11 @@ int main( void ) {
  	     	/* draw sprites */
 		
  	     	//glDrawSprite(sprites[0],player.xPos,player.yPos,50,50);
+		//enemiesUpdate();
+		enemiesUpdateCamera();
+		drawEnemies(NUMBER_OF_ENEMIES);
 		animDraw(&player.anim,player.xPosC,player.yPosC,TILE_SIZE,TILE_SIZE);
-		if(!player.anim.isPlaying) animReset(&player.anim);
+		//if(!player.anim.isPlaying) animReset(&player.anim);
  	     	/* draw foregrounds, handle parallax */
  	     	/* Game logic goes here */
  	     	
@@ -386,6 +423,14 @@ int main( void ) {
 	return 0;
 }
 
+void drawEnemies(int numEnemies) {
+	int i;
+	for(i=0;i<numEnemies;i++) {
+		if(enemies[i].hitpoints>0) animDraw(&enemies[i].anim, 
+				enemies[i].xPosC, enemies[i].yPosC,
+				TILE_SIZE, TILE_SIZE);
+	}
+}
 
 int playerPositionReset() {
 	player.xPosTile=player.xPosTileLast;
@@ -397,7 +442,17 @@ int debugPosition() {
 	printf("   CURR:%d %d\n", player.xPosTile, player.yPosTile);
 }
 
-int canTurn(Uint32 currentTime) {
+int combat(Enemy* enemy) {
+	player.hitpoints-=enemy->damage;
+	enemy->hitpoints-=player.damage;
+	if(enemy->hitpoints<=0) {
+		map[enemy->xPosTile][enemy->yPosTile].hasEnemy=false;
+		map[enemy->xPosTile][enemy->yPosTile].enemyID=-1;
+	}
+	return 0;
+}
+
+int turnLegal(Uint32 currentTime) {
 	if(currentTime-gamestate.lastTurnMs>75) {
 		gamestate.turn++;
 		gamestate.lastTurnMs=currentTime;
@@ -409,7 +464,6 @@ int canTurn(Uint32 currentTime) {
 
 /* Tests player position */
 void playerBoundsCorrection() {
-
 	if(player.xPosTile<0 )
 		player.xPosTile=0;
 	if(player.xPosTile>MAP_WIDTH-1)
@@ -419,45 +473,69 @@ void playerBoundsCorrection() {
 	if(player.yPosTile>MAP_HEIGHT-1)
 		player.yPosTile=MAP_HEIGHT-1;
 }
-/*
-int playerLeftOf(int m, int n) {
-	int overlap=(player.xPosW+TILE_SIZE)-m*TILE_SIZE;
-	printf("LEFT OF: %d\n", overlap);
-	if(overlap>0)
-		return overlap;
-	else return 0;
-}
-
-int playerRightOf(int m, int n) {
-	int overlap=player.xPosW-(m*TILE_SIZE+TILE_SIZE);
-	printf("RIGHT OF: %d\n", overlap);
-	if(overlap<0)
-		return overlap;
-	else return 0;
-}
-
-int playerAbove(int m, int n) {
-	int overlap=(player.yPosW+TILE_SIZE)-n*TILE_SIZE;
-	printf("ABOVE: %d\n", overlap);
-	if(overlap>0)
-		return overlap;
-	return 0;
-}
-
-int playerBelow(int m, int n) {
-	int overlap=player.yPosW-(n*TILE_SIZE+TILE_SIZE);
-	printf("BELOW: %d\n", overlap);
-	if(overlap>0)
-		return overlap;
-	return 0;
-}*/
 
 /* Get position from tile to pixel values relative to camera. */
-void updatePlayer() {
+void playerUpdate() {
 	player.xPosC=player.xPosTile*TILE_SIZE-camera.xPos;
 	player.yPosC=player.yPosTile*TILE_SIZE-camera.yPos;
 }
 
+void enemiesUpdateCamera() {
+	int i;
+	Enemy* curEnemy;
+	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
+		curEnemy=&enemies[i];
+		curEnemy->xPosC=curEnemy->xPosTile*TILE_SIZE-camera.xPos;
+		curEnemy->yPosC=curEnemy->yPosTile*TILE_SIZE-camera.yPos;
+		//enemies[i].xPosC=enemies[i].xPosTile*TILE_SIZE-camera.xPos;
+	}
+}
+/* Most changes to game state occurs during a turn. This should
+ * only execute after some collision checks have happened.
+ * Game should not execute this if player is colliding into a wall,
+ * for example. */
+void turn() {
+	int x=player.xPosTile;
+	int y=player.yPosTile;
+	Enemy* enemy;
+	if(map[x][y].hasEnemy==true) {
+		if(DEBUG) printf("COMBAT!!!!");
+		enemy=&(enemies[map[x][y].enemyID]);
+		playerPositionReset();
+		combat(enemy);
+	}
+}
+
+void enemiesDebug() {
+	int i;
+	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
+		printf("\tenemy[%d] tilepos: %d %d\n", i,enemies[i].xPosTile,enemies[i].yPosTile);
+		printf("\tenemy[%d] cPos: %d %d\n", i,enemies[i].xPosC,enemies[i].yPosC);
+		printf("\tPLAYER POS: %d %d\n", player.xPosC,player.yPosC);
+		printf("\tCAMERA POS: %d %d\n", camera.xPos,camera.yPos);
+	}
+}
+
+
+void enemiesUpdatePosition() {
+	int i;
+	int x;
+	int y;
+	//Tile* tile;
+	Enemy curEnemy;
+	printf("here");
+	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
+		curEnemy=enemies[i];
+		x=curEnemy.xPosTile;
+		y=curEnemy.yPosTile;
+		map[curEnemy.xPosTileLast][curEnemy.yPosTileLast].hasEnemy=false;
+		map[curEnemy.xPosTileLast][curEnemy.yPosTileLast].enemyID=-1;
+		map[x][y].hasEnemy=true;
+		map[x][y].enemyID=i;
+
+		//printf("%d %d HAS ENEM? %d\n",x,y, map[x][y].hasEnemy);
+	}
+}
 
 void animTick(AnimData* data, float dt) {
 	if(!data->isPlaying) {
