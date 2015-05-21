@@ -96,13 +96,15 @@ void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
 void animReset(AnimData*);
 void animDraw(AnimData*, int,int,int,int);
-void playerUpdate();
+void playerUpdatePixPos();
+void playerUpdate(const unsigned char*,Uint32);
 void enemiesUpdatePosition();
 void playerBoundsCorrection();
 void drawEnemies(int);
 void enemiesUpdateCamera();
 void turn();
 void enemiesDebug();
+void cameraUpdate();
 int combat(Enemy*);
 
 int main( void ) {
@@ -326,46 +328,9 @@ int main( void ) {
 
 		animTick(&player.anim, 0.016);
 
- 	     	/* update positions of player here */
-		if(kbState[SDL_SCANCODE_RIGHT]) {
-			if(turnLegal(currentFrameMs)) {
-				player.xPosTile++;
-				playerBoundsCorrection();
-				turn();
-				if(DEBUG) debugPosition();
-				if(DEBUG) enemiesDebug();
-			}
-		}
-
-		else if(kbState[SDL_SCANCODE_LEFT]) {
-			if(turnLegal(currentFrameMs)) {
-				player.xPosTile--;
-				playerBoundsCorrection();
-				turn();
-				if(DEBUG) debugPosition();
-				if(DEBUG) enemiesDebug();
-			}
-		}
-		else if(kbState[SDL_SCANCODE_UP]) {
-			if(turnLegal(currentFrameMs)) {
-				player.yPosTile--;
-				playerBoundsCorrection();
-				turn();
-				if(DEBUG) debugPosition();
-				
-				if(DEBUG) enemiesDebug();
-			}
-		} 
-		else if(kbState[SDL_SCANCODE_DOWN]) {
-			if(turnLegal(currentFrameMs)) {
-				player.yPosTile++;
-				playerBoundsCorrection();
-				turn();
-				if(DEBUG) debugPosition();
-
-				if(DEBUG) enemiesDebug();
-			}
-		}
+ 	     	/* update positions of player based on input */
+		playerUpdate(kbState, currentFrameMs);
+		
 		/* Physics */
 		do {
 			if(map[player.xPosTile][player.yPosTile].coll) {
@@ -374,24 +339,10 @@ int main( void ) {
 			lastPhysicsFrameMs+=physicsDeltaMs;
 		} while(lastPhysicsFrameMs + physicsDeltaMs<currentFrameMs);
 		
-		playerUpdate();
+		playerUpdatePixPos();
+
 		/* camera adjustment */
-		if(player.xPosC+TILE_SIZE>camera.right) {
-			if(camera.xPos+WINDOW_WIDTH<MAP_WIDTH*TILE_SIZE)
-				camera.xPos+=camera.scroll;	
-		}
-		else if(player.xPosC<camera.left) {
-			if(camera.xPos>0)
-				camera.xPos-=camera.scroll;
-		}
-		if(player.yPosC<camera.top) {
-			if(camera.yPos>0)
-				camera.yPos-=camera.scroll;
-		}
-		else if(player.yPosC+TILE_SIZE>camera.bottom) {
-			if(camera.yPos+WINDOW_HEIGHT<MAP_HEIGHT*TILE_SIZE)
-				camera.yPos+=camera.scroll;
-		}
+		cameraUpdate();
 
  	     	/* draw backgrounds, handle parallax */
 		
@@ -461,6 +412,25 @@ int turnLegal(Uint32 currentTime) {
 	}
 	else return 0;
 }
+/* No params cos global everything */
+void cameraUpdate() {
+	if(player.xPosC+TILE_SIZE>camera.right) {
+			if(camera.xPos+WINDOW_WIDTH<MAP_WIDTH*TILE_SIZE)
+				camera.xPos+=camera.scroll;	
+		}
+		else if(player.xPosC<camera.left) {
+			if(camera.xPos>0)
+				camera.xPos-=camera.scroll;
+		}
+		if(player.yPosC<camera.top) {
+			if(camera.yPos>0)
+				camera.yPos-=camera.scroll;
+		}
+		else if(player.yPosC+TILE_SIZE>camera.bottom) {
+			if(camera.yPos+WINDOW_HEIGHT<MAP_HEIGHT*TILE_SIZE)
+				camera.yPos+=camera.scroll;
+		}
+}
 
 /* Tests player position */
 void playerBoundsCorrection() {
@@ -474,8 +444,51 @@ void playerBoundsCorrection() {
 		player.yPosTile=MAP_HEIGHT-1;
 }
 
+/* Since player input controls player's character, they are
+ * coupled. */
+void playerUpdate(const unsigned char* kbState, Uint32 currentFrameMs) {
+	if(kbState[SDL_SCANCODE_RIGHT]) {
+		if(turnLegal(currentFrameMs)) {
+			player.xPosTile++;
+			playerBoundsCorrection();
+			turn();
+			if(DEBUG) debugPosition();
+			if(DEBUG) enemiesDebug();
+		}
+	}
+	else if(kbState[SDL_SCANCODE_LEFT]) {
+		if(turnLegal(currentFrameMs)) {
+			player.xPosTile--;
+			playerBoundsCorrection();
+			turn();
+			if(DEBUG) debugPosition();
+			if(DEBUG) enemiesDebug();
+		}
+	}
+	else if(kbState[SDL_SCANCODE_UP]) {
+		if(turnLegal(currentFrameMs)) {
+			player.yPosTile--;
+			playerBoundsCorrection();
+			turn();
+			if(DEBUG) debugPosition();
+			
+			if(DEBUG) enemiesDebug();
+		}
+	} 
+	else if(kbState[SDL_SCANCODE_DOWN]) {
+		if(turnLegal(currentFrameMs)) {
+			player.yPosTile++;
+			playerBoundsCorrection();
+			turn();
+			if(DEBUG) debugPosition();
+
+			if(DEBUG) enemiesDebug();
+		}
+	}
+}
+
 /* Get position from tile to pixel values relative to camera. */
-void playerUpdate() {
+void playerUpdatePixPos() {
 	player.xPosC=player.xPosTile*TILE_SIZE-camera.xPos;
 	player.yPosC=player.yPosTile*TILE_SIZE-camera.yPos;
 }
