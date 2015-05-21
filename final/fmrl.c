@@ -96,14 +96,18 @@ void animTick(AnimData*, float);
 void animSet(AnimData*, AnimDef*);
 void animReset(AnimData*);
 void animDraw(AnimData*, int,int,int,int);
+void bgDraw();
 void playerUpdatePixPos();
 void playerUpdate(const unsigned char*,Uint32);
-void enemiesUpdatePosition();
+void mapUpdateEnemyData();
 void playerBoundsCorrection();
-void drawEnemies(int);
-void enemiesUpdateCamera();
+void enemiesDraw(int);
+void enemiesUpdate();
+void enemiesUpdatePixPos();
 void turn();
 void enemiesDebug();
+void enemiesSavePositions();
+void enemyPositionReset(Enemy*);
 void cameraUpdate();
 int combat(Enemy*);
 
@@ -279,11 +283,8 @@ int main( void ) {
 	enemies[1].yPosTileLast=28;
 	enemies[1].hitpoints=12;
 	enemies[1].damage=4;
-	enemiesUpdateCamera();
-	enemiesUpdatePosition();
-	//printf("\nENEMY0 POS: %d %d\n", enemies[0].xPosTile,enemies[0].yPosTile);
-	//printf("map[0][0] hasEnem? %d\n", map[0][0].hasEnemy);
-//	printf("%d\n", true);
+	enemiesUpdatePixPos();
+	mapUpdateEnemyData();
 
 	/*Previous frame's keyboard state*/
 	unsigned char kbPrevState[SDL_NUM_SCANCODES]={0};
@@ -307,6 +308,7 @@ int main( void ) {
 		memcpy(kbPrevState, kbState,sizeof(kbPrevState));
 		player.xPosTileLast=player.xPosTile;
 		player.yPosTileLast=player.yPosTile;
+		enemiesSavePositions();
 		currentFrameMs = SDL_GetTicks();
 		float deltaTime = (currentFrameMs - lastFrameMs)/1000.0f;
 
@@ -328,14 +330,21 @@ int main( void ) {
 
 		animTick(&player.anim, 0.016);
 
- 	     	/* update positions of player based on input */
+ 	     	/* update positions of player based on input
+		 * implicitly handles enemies */
 		playerUpdate(kbState, currentFrameMs);
 		
 		/* Physics */
+		int ii;
 		do {
 			if(map[player.xPosTile][player.yPosTile].coll) {
 				playerPositionReset();
 			}
+			/*for(ii=0;NUMBER_OF_ENEMIES;ii++) {
+				if(map[enemies[ii].xPosTile][enemies[ii].yPosTile].coll)
+					enemyPositionReset(&enemies[ii]);
+			}*/
+			//
 			lastPhysicsFrameMs+=physicsDeltaMs;
 		} while(lastPhysicsFrameMs + physicsDeltaMs<currentFrameMs);
 		
@@ -345,22 +354,13 @@ int main( void ) {
 		cameraUpdate();
 
  	     	/* draw backgrounds, handle parallax */
-		
-		int k,l;
-		
-		for(k=0;k<40;k++) {
- 	     		for(l=0;l<40;l++) {
- 	     			glDrawSprite( bgTex[map[l][k].image],
- 	     				TILE_SIZE*l-camera.xPos , 
- 	     				TILE_SIZE*k-camera.yPos, TILE_SIZE , TILE_SIZE );
- 	     		}
- 	     	}
+		bgDraw();
+
  	     	/* draw sprites */
 		
- 	     	//glDrawSprite(sprites[0],player.xPos,player.yPos,50,50);
 		//enemiesUpdate();
-		enemiesUpdateCamera();
-		drawEnemies(NUMBER_OF_ENEMIES);
+		enemiesUpdatePixPos();
+		enemiesDraw(NUMBER_OF_ENEMIES);
 		animDraw(&player.anim,player.xPosC,player.yPosC,TILE_SIZE,TILE_SIZE);
 		//if(!player.anim.isPlaying) animReset(&player.anim);
  	     	/* draw foregrounds, handle parallax */
@@ -374,7 +374,7 @@ int main( void ) {
 	return 0;
 }
 
-void drawEnemies(int numEnemies) {
+void enemiesDraw(int numEnemies) {
 	int i;
 	for(i=0;i<numEnemies;i++) {
 		if(enemies[i].hitpoints>0) animDraw(&enemies[i].anim, 
@@ -430,6 +430,16 @@ void cameraUpdate() {
 			if(camera.yPos+WINDOW_HEIGHT<MAP_HEIGHT*TILE_SIZE)
 				camera.yPos+=camera.scroll;
 		}
+}
+void bgDraw() {
+	int k,l;
+	for(k=0;k<40;k++) {
+     		for(l=0;l<40;l++) {
+     			glDrawSprite( bgTex[map[l][k].image],
+     				TILE_SIZE*l-camera.xPos , 
+     				TILE_SIZE*k-camera.yPos, TILE_SIZE , TILE_SIZE );
+     		}
+     	}
 }
 
 /* Tests player position */
@@ -487,13 +497,16 @@ void playerUpdate(const unsigned char* kbState, Uint32 currentFrameMs) {
 	}
 }
 
-/* Get position from tile to pixel values relative to camera. */
+/* Updates the player's character's pixel position
+ * based on its tile position */
 void playerUpdatePixPos() {
 	player.xPosC=player.xPosTile*TILE_SIZE-camera.xPos;
 	player.yPosC=player.yPosTile*TILE_SIZE-camera.yPos;
 }
 
-void enemiesUpdateCamera() {
+/* Updates every enemy's pixel position
+ * based on its tile position */
+void enemiesUpdatePixPos() {
 	int i;
 	Enemy* curEnemy;
 	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
@@ -503,6 +516,7 @@ void enemiesUpdateCamera() {
 		//enemies[i].xPosC=enemies[i].xPosTile*TILE_SIZE-camera.xPos;
 	}
 }
+
 /* Most changes to game state occurs during a turn. This should
  * only execute after some collision checks have happened.
  * Game should not execute this if player is colliding into a wall,
@@ -511,12 +525,57 @@ void turn() {
 	int x=player.xPosTile;
 	int y=player.yPosTile;
 	Enemy* enemy;
+	//first take care of player initiated combat
 	if(map[x][y].hasEnemy==true) {
 		if(DEBUG) printf("COMBAT!!!!");
 		enemy=&(enemies[map[x][y].enemyID]);
 		playerPositionReset();
 		combat(enemy);
 	}
+	//then allow all monsters to move
+	enemiesUpdate();
+}
+void enemiesSavePositions() {
+	int i;
+	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
+		enemies[i].xPosTileLast=enemies[i].xPosTile;
+		enemies[i].yPosTileLast=enemies[i].yPosTile;
+	}
+}
+void enemyPositionReset(Enemy* enemy) {
+	//int x=enemy->xPosTile;
+	//int y=enemy->yPosTile;
+	enemy->xPosTile=enemy->xPosTileLast;
+	enemy->yPosTile=enemy->yPosTileLast;
+}
+/* Contains enemy logic. Every time this is executed,
+ * all enemies should do something. They can:
+ * 	1. Do nothing
+ * 	2. Move randomly
+ * 	3. Move a long a path(?)
+ */
+void enemiesUpdate() {
+	int i;
+	float r;
+	Enemy* curEnemy;
+	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
+		curEnemy=&enemies[i];
+		r=rand()/(float)RAND_MAX;
+		if(r<0.8) {
+			if(r<0.4) { //move along x-axis
+			       	if(curEnemy->xPosTile<player.xPosTile)
+					curEnemy->xPosTile++;
+				else curEnemy->xPosTile--;
+			}
+			else { //move along y-axis
+				if(curEnemy->yPosTile<player.yPosTile)
+					curEnemy->yPosTile++;
+				else curEnemy->yPosTile--;
+			}
+		} //else do nothing
+
+	}
+	//mapUpdateEnemyData();
 }
 
 void enemiesDebug() {
@@ -529,14 +588,12 @@ void enemiesDebug() {
 	}
 }
 
-
-void enemiesUpdatePosition() {
+/* This keeps the map aware of enemy locations. */
+void mapUpdateEnemyData() {
 	int i;
 	int x;
 	int y;
-	//Tile* tile;
 	Enemy curEnemy;
-	printf("here");
 	for(i=0;i<NUMBER_OF_ENEMIES;i++) {
 		curEnemy=enemies[i];
 		x=curEnemy.xPosTile;
@@ -545,8 +602,6 @@ void enemiesUpdatePosition() {
 		map[curEnemy.xPosTileLast][curEnemy.yPosTileLast].enemyID=-1;
 		map[x][y].hasEnemy=true;
 		map[x][y].enemyID=i;
-
-		//printf("%d %d HAS ENEM? %d\n",x,y, map[x][y].hasEnemy);
 	}
 }
 
