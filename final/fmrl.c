@@ -109,6 +109,7 @@ void enemiesDebug();
 void enemiesSavePositions();
 void enemyPositionReset(Enemy*);
 void cameraUpdate();
+void playerDraw();
 int combat(Enemy*);
 
 int main( void ) {
@@ -160,9 +161,11 @@ int main( void ) {
 	bgTex[1]=glTexImageTGAFile("tile3.tga",NULL,NULL);
 	bgTex[3]=glTexImageTGAFile("tile4.tga",NULL,NULL);
 	bgTex[4]=glTexImageTGAFile("tile5.tga",NULL,NULL);
+	bgTex[5]=glTexImageTGAFile("title1b.tga",NULL,NULL);
+	bgTex[6]=glTexImageTGAFile("gameover.tga",NULL,NULL);
 	
-	sprites[0]=glTexImageTGAFile("character1.tga",NULL,NULL);
-	sprites[1]=glTexImageTGAFile("character2.tga",NULL,NULL);
+	sprites[0]=glTexImageTGAFile("character.tga",NULL,NULL);
+	sprites[1]=glTexImageTGAFile("enemy1.tga",NULL,NULL);
 	/* Game state stuff */
 	gamestate.turn=0;
 	gamestate.lastTurnMs=0.0f;
@@ -185,13 +188,11 @@ int main( void ) {
 	playerAnim.name = "player";
 	playerAnim.frames[0].frameNum=0;
 	playerAnim.frames[0].frameTime=1.0;
-	playerAnim.frames[1].frameNum=1;
-	playerAnim.frames[1].frameTime=1.0;
 	playerAnim.numFrames=1;
 	//player.anim.def = &playerAnim;
 	animSet(&player.anim ,&playerAnim);
-	player.xPosTile=3;
-	player.yPosTile=3;
+	player.xPosTile=14;
+	player.yPosTile=10;
 	player.xPosTileLast=3;
 	player.yPosTileLast=3;
 	player.hitpoints=20;
@@ -361,7 +362,9 @@ int main( void ) {
 		//enemiesUpdate();
 		enemiesUpdatePixPos();
 		enemiesDraw(NUMBER_OF_ENEMIES);
-		animDraw(&player.anim,player.xPosC,player.yPosC,TILE_SIZE,TILE_SIZE);
+		playerDraw();
+		if(gamestate.turn<3) glDrawSprite(bgTex[5],64,64,302,116);
+		if(player.hitpoints<=0) glDrawSprite(bgTex[6],192,128,93,72);
 		//if(!player.anim.isPlaying) animReset(&player.anim);
  	     	/* draw foregrounds, handle parallax */
  	     	/* Game logic goes here */
@@ -372,6 +375,9 @@ int main( void ) {
 	SDL_Quit();
 
 	return 0;
+}
+void playerDraw() {
+	animDraw(&player.anim,player.xPosC,player.yPosC,TILE_SIZE,TILE_SIZE);
 }
 
 void enemiesDraw(int numEnemies) {
@@ -391,6 +397,7 @@ int playerPositionReset() {
 int debugPosition() {
 	printf("   LAST:%d %d\n", player.xPosTileLast,player.yPosTileLast);
 	printf("   CURR:%d %d\n", player.xPosTile, player.yPosTile);
+	if(player.hitpoints<=0) printf("   GAME OVER\n");
 }
 
 int combat(Enemy* enemy) {
@@ -405,9 +412,8 @@ int combat(Enemy* enemy) {
 
 int turnLegal(Uint32 currentTime) {
 	if(currentTime-gamestate.lastTurnMs>75) {
-		gamestate.turn++;
 		gamestate.lastTurnMs=currentTime;
-		printf("TURN: %d\n", gamestate.turn);
+		if(DEBUG) printf("TURN: %d\n", gamestate.turn);
 		return 1;
 	}
 	else return 0;
@@ -481,7 +487,6 @@ void playerUpdate(const unsigned char* kbState, Uint32 currentFrameMs) {
 			playerBoundsCorrection();
 			turn();
 			if(DEBUG) debugPosition();
-			
 			if(DEBUG) enemiesDebug();
 		}
 	} 
@@ -491,7 +496,6 @@ void playerUpdate(const unsigned char* kbState, Uint32 currentFrameMs) {
 			playerBoundsCorrection();
 			turn();
 			if(DEBUG) debugPosition();
-
 			if(DEBUG) enemiesDebug();
 		}
 	}
@@ -525,6 +529,7 @@ void turn() {
 	int x=player.xPosTile;
 	int y=player.yPosTile;
 	Enemy* enemy;
+	gamestate.turn++;
 	//first take care of player initiated combat
 	if(map[x][y].hasEnemy==true) {
 		if(DEBUG) printf("COMBAT!!!!");
@@ -573,9 +578,12 @@ void enemiesUpdate() {
 				else curEnemy->yPosTile--;
 			}
 		} //else do nothing
+		if(curEnemy->xPosTile==player.xPosTile &&
+ 		   curEnemy->yPosTile==player.yPosTile    )
+			enemyPositionReset(curEnemy);
 
 	}
-	//mapUpdateEnemyData();
+	mapUpdateEnemyData();
 }
 
 void enemiesDebug() {
@@ -647,4 +655,5 @@ void animDraw(AnimData* anim, int x, int y, int w, int h) {
 	GLuint frameToDraw = sprites[curFrameNum];
 	glDrawSprite(frameToDraw,x,y,w,h);
 }
+
 
